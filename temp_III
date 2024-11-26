@@ -1,0 +1,170 @@
+import os
+import openai
+from PIL import Image
+import io
+import base64
+import string
+import math
+import shutil
+import requests
+import json
+
+from dotenv import load_dotenv
+
+# -----------------------------
+# Configuration
+# -----------------------------
+# Load environment variables from the .env file
+# Load environment variables from the .env file
+load_dotenv()
+
+# Retrieve the OpenAI API key from environment variables
+openai.api_key = os.getenv('OPENAI_API_KEY')
+
+# Path to the folder containing images
+image_folder = 'padded_letters'
+
+# Supported image file extensions
+supported_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
+
+# Define the list of English letters, French text symbols, and noise
+classes = list(string.ascii_letters) + [
+    "é", "à", "è", "ù", "â", "ê", "î", "ô", "û", "ë", "ï", "ü", "ÿ", "ç",
+    ".", ",", ";", ":", "!", "?", "« »", "'", "-", "—", "…", "(", ")", "[", "]", "{", "}", "/",
+    "+", "-", "×", "÷", "=", "€", "$", "£", "%",
+    "&", "*", "@", "#", "^", "_", "~", "|", "\\",
+    "Æ", "æ", "Œ", "œ"
+]
+
+# Create a strict prompt template
+prompt_template = (
+    "As a professional calligrapher with extensive experience in handwriting analysis, "
+    "classify the handwritten character in the provided image into one of the following categories: "
+    + ", ".join(classes)
+    + ". Be aware that handwriting styles can differ markedly from standard symbols, so exercise caution during classification. "
+    "Note that all handwritten symbols are centered within the image; for instance, a comma may appear in the middle rather than at the bottom. "
+    "Provide only the classification as your response, without explanation or additional text."
+)
+
+# -----------------------------
+# Function Definitions
+# -----------------------------
+
+def encode_image(image_path):
+    """
+    Encode an image to a base64 string suitable for embedding in a data URI.
+
+    Parameters:
+        image_path (str): The file path to the image.
+
+    Returns:
+        str: The base64-encoded image string.
+    """
+    try:
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
+    except Exception as e:
+        raise ValueError(f"Failed to encode image {os.path.basename(image_path)}: {e}")
+
+def classify_image(image_path):
+    """
+    Classify a single image using OpenAI's GPT-4 model.
+
+    Parameters:
+        image_path (str): The file path to the image.
+
+    Returns:
+        str: The classification result.
+    """
+    try:
+        # Encode the image using the encode_image function
+        base64_image = encode_image(image_path)
+
+        # Construct the data URI for the image
+        image_data_uri = f"data:image/jpeg;base64,{base64_image}"
+
+        # Make a request to the OpenAI API
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt_template
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_data_uri
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=2, # Adjust as needed for classification
+            logprobs=True,  # Retrieve log probabilities for the output tokens
+            top_logprobs=5,
+             top_p=1.0  # Ensure we retrieve the full distribution  
+        )
+
+        # Extract the classification result
+        classification_result = response.choices[0].message.content.strip()
+        probability =math.exp( response.choices[0].logprobs.content[0].logprob)
+        return classification_result, probability
+
+    except Exception as e:
+        return f"Error processing {os.path.basename(image_path)}: {str(e)}"
+
+# -----------------------------
+# Main Processing
+# -----------------------------
+
+def main():
+    # Check if the image folder exists
+    if not os.path.isdir(image_folder):
+        print(f"Error: The folder '{image_folder}' does not exist.")
+        return
+
+    # List all files in the folder
+    files = os.listdir(image_folder)
+
+    # Filter out non-image files
+    image_files = [file for file in files if file.lower().endswith(supported_extensions)]
+
+    if not image_files:
+        print(f"No image files found in the folder '{image_folder}'.")
+        return
+
+    print(f"Found {len(image_files)} image(s) in '{image_folder}'. Starting classification...\n")
+
+    # Iterate over each image and classify
+    for idx, image_file in enumerate(image_files, start=1):
+        image_path = os.path.join(image_folder, image_file)
+        print(f"Processing {idx}/{len(image_files)}: {image_file}")
+        final_letters_folder = "final_letters"
+        os.makedirs(final_letters_folder, exist_ok=True)
+        classification, probability = classify_image(image_path)
+
+        # Determine the target folder
+        if probability < 0.8:
+            target_folder = os.path.join(final_letters_folder, "Noise")
+        else:
+            target_folder = os.path.join(final_letters_folder, classification)
+
+        # Create the target folder if it doesn't exist
+        os.makedirs(target_folder, exist_ok=True)
+
+        # Move the image to the target folder
+        target_path = os.path.join(target_folder, image_file)
+        shutil.move(image_path, target_path)
+
+        print(f"Classification: {classification}, Probability: {probability:.2f}")
+        print(f"Moved to: {target_folder}")
+
+    print("Classification completed.")
+
+if __name__ == "__main__":
+    main()

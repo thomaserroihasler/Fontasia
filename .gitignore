@@ -1,0 +1,73 @@
+# Ignore specific folders
+final_letters/
+padded_letters/
+single_letters/
+typical_symbols/
+clusters/
+data/
+letters/
+output_emnist_characters/
+
+# Ignore image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
+*.webp
+
+# Ignore logs
+*.log
+*.out
+*.err
+
+# Ignore Python-related files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+dist/
+build/
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore temporary or editor-specific files
+*.tmp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.bak
+
+# Ignore virtual environment
+venv/
+env/
+
+# Ignore compiled files
+*.o
+*.so
+*.a
+*.dll
+*.exe
+
+# Ignore configuration files
+*.ini
+*.cfg
+*.env
+
+# Ignore additional generated artifacts
+*.pdf
+*.eps
+*.ai
+*.psd
+
+# Node.js (if applicable)
+node_modules/
+
+# Ignore MacOS system files
+*.DS_Store
